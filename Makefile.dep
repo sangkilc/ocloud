@@ -1,5 +1,5 @@
 ###############################################################################
-# oCloud Makefile                                                             #
+# libBIL build dependency file                                                #
 #                                                                             #
 # Copyright (c) 2014, Sang Kil Cha                                            #
 # All rights reserved.                                                        #
@@ -13,16 +13,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.                        #
 ###############################################################################
 
-OCAMLBUILD=ocamlbuild
-
-all: depcheck
-	$(OCAMLBUILD) -Is src -Xs buildtools ocloud.native
-
-clean: depcheck
-	$(OCAMLBUILD) -clean
-
-depcheck: Makefile.dep
-	@buildtools/depcheck.sh $<
-
-.PHONY: all clean depcheck
-
+# check binaries
+bin,ocamlbuild
+# check libraries
+lib,unix
+lib,str
