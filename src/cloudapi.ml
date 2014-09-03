@@ -1,19 +1,19 @@
-(** oCloud: controlling cloud nodes via command lines (written in OCaml)
+(** oCloud: controlling cloud nodes via command lines
 
     @author Sang Kil Cha <sangkil.cha\@gmail.com>
 
 *)
 (*
-Copyright (c) 2014, Sang Kil Cha
-All rights reserved.
-This software is free software; you can redistribute it and/or
-modify it under the terms of the GNU Library General Public
-License version 2, with the special exception on linking
-described in file LICENSE.
+    Copyright (c) 2014, Sang Kil Cha
+    All rights reserved.
+    This software is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Library General Public
+    License version 2, with the special exception on linking
+    described in file LICENSE.
 
-This software is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+    This software is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 *)
 
 open Client
@@ -65,24 +65,28 @@ end
 module CloudAPI (OS : OSType) : API =
 struct
 
-  let ssh = function
-    | None ->
-        [OS.ssh_path;"-o";"StrictHostKeyChecking=no"]
-    | Some keypath ->
-        [OS.ssh_path;"-i";keypath;"-o";"StrictHostKeyChecking=no"]
+  let ssh client keypath =
+    let port = string_of_int client.client_port in
+    match keypath with
+      | None ->
+        [OS.ssh_path;"-o";"StrictHostKeyChecking=no";"-p";port]
+      | Some keypath ->
+        [OS.ssh_path;"-i";keypath;"-o";"StrictHostKeyChecking=no";"-p";port]
 
-  let scp = function
-    | None ->
+  let scp client keypath =
+    let port = string_of_int client.client_port in
+    match keypath with
+      | None ->
         [OS.scp_path;
-         "-r";"-o";"StrictHostKeyChecking=no";"-c";"arcfour";"-C"]
-    | Some keypath ->
+         "-r";"-o";"StrictHostKeyChecking=no";"-c";"arcfour";"-C";"-P";port]
+      | Some keypath ->
         [OS.scp_path;
          "-i";keypath;
-         "-r";"-o";"StrictHostKeyChecking=no";"-c";"arcfour";"-C"]
+         "-r";"-o";"StrictHostKeyChecking=no";"-c";"arcfour";"-C";"-P";port]
 
   let sshcmd cmds =
     fun uid keypath client screen -> begin
-        ssh keypath
+        ssh client keypath
       @ [uid^"@"^client.client_addr]
       @ (
           if screen then
@@ -97,13 +101,13 @@ struct
     fun uid keypath client screen -> begin
       let cd = Filename.concat path_to (client.client_name^"_"^client.client_addr) in
       let () = Utils.mkdir cd in
-        scp keypath
+        scp client keypath
       @ [uid^"@"^client.client_addr^":"^path_from; cd]
     end
 
   let pushcmd path_from path_to =
     fun uid keypath client screen -> begin
-        scp keypath
+        scp client keypath
       @ [path_from; uid^"@"^client.client_addr^":"^path_to]
     end
 
