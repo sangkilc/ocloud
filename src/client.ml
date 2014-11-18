@@ -16,6 +16,8 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 *)
 
+open Utils
+
 type client_t = {
   client_name: string;
   client_addr: string;
@@ -25,8 +27,8 @@ type client_t = {
 let get_name_and_addr l =
   let t = Str.split (Str.regexp_string ":") l in
   match t with
-    | name::addr::[] -> name, Utils.trim addr, 22
-    | name::addr::port::[] -> name, Utils.trim addr, int_of_string port
+    | name::addr::[] -> name, trim addr, 22
+    | name::addr::port::[] -> name, trim addr, (int_of_string (trim port))
     | _ -> failwith "bad format"
 
 let readlines chan =

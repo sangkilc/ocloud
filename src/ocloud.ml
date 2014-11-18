@@ -85,13 +85,16 @@ struct
       Printf.printf "(%s) : (%s)\n" n a
     ) client_list
 
+  let deploy keypath client_list cmds user_id =
+    (** TODO pseudo terminal creation *)
+    ()
+
   let exec keypath client_list cmd uid =
     let cmd = String.concat " " cmd in
     API.parallel_exec ~screen:false keypath client_list uid
       (API.sshcmd [cmd])
 
   let parse_opt keypath client_list args = function
-    | "reboot" -> reboot keypath client_list
     | "kill" | "clear" -> kill keypath client_list
     | "pull" -> pull keypath client_list args
     | "zippull" -> zippull keypath client_list args
@@ -99,8 +102,10 @@ struct
     | "connect" -> connect keypath client_list args
     | "ping" -> ping keypath client_list args
     | "list" | "ls" -> list_clients client_list
+    | "deploy" -> deploy keypath client_list args user_id
     | "exec" | "execute" -> exec keypath client_list args user_id
     | "rootexec" -> exec keypath client_list args root_id
+    | "reboot" -> reboot keypath client_list
     | opt ->
         failwith ("unknown option: ("^opt^")")
 
@@ -113,6 +118,7 @@ let usage = "Usage: "^Sys.argv.(0)^" <client file> [optional args] <cmds>\n"
 let invalid_arg () =
   print_string usage;
   print_string (
+    "  deploy <key>                         : deploy a ssh key to each node\n"^
     "  exec <cmd>                           : execute a command in cloud\n"^
     "  rootexec <cmd>                       : execute a command as a root\n"^
     "  reboot                               : reboot\n" ^
@@ -122,6 +128,7 @@ let invalid_arg () =
     "  push <local> <remote>                : push local file/dir to remote\n" ^
     "  connect <client_name>                : connect to a client\n" ^
     "  list                                 : show client list\n" ^
+    "  help                                 : show help\n"^
     "\n"
   );
   exit 1
