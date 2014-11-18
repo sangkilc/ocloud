@@ -38,7 +38,10 @@ end
 module type API =
 sig
 
-  val exec : string list -> unit
+  val exec : string list -> bool -> unit
+
+  (* return true if the program successfully exited. otherwise return false *)
+  val execute_return : string option -> string -> cmdgen_t -> client_t -> bool
 
   val parallel_exec :
     ?screen:bool ->
@@ -69,20 +72,45 @@ struct
     let port = string_of_int client.client_port in
     match keypath with
       | None ->
-        [OS.ssh_path;"-o";"StrictHostKeyChecking=no";"-p";port]
+        [
+          OS.ssh_path;
+          "-o";"StrictHostKeyChecking=no";
+          "-o";"PasswordAuthentication=no";
+          "-o";"ConnectTimeout=3";
+          "-p";port
+        ]
       | Some keypath ->
-        [OS.ssh_path;"-i";keypath;"-o";"StrictHostKeyChecking=no";"-p";port]
+        [
+          OS.ssh_path;
+          "-i";keypath;
+          "-o";"StrictHostKeyChecking=no";
+          "-o";"PasswordAuthentication=no";
+          "-o";"ConnectTimeout=3";
+          "-p";port
+        ]
 
   let scp client keypath =
     let port = string_of_int client.client_port in
     match keypath with
       | None ->
-        [OS.scp_path;
-         "-r";"-o";"StrictHostKeyChecking=no";"-c";"arcfour";"-C";"-P";port]
+        [
+          OS.scp_path;
+          "-r";
+          "-o";"StrictHostKeyChecking=no";
+          "-o";"PasswordAuthentication=no";
+          "-c";"arcfour";"-C";
+          "-P";port
+        ]
       | Some keypath ->
-        [OS.scp_path;
-         "-i";keypath;
-         "-r";"-o";"StrictHostKeyChecking=no";"-c";"arcfour";"-C";"-P";port]
+        [
+          OS.scp_path;
+          "-i";keypath;
+          "-r";
+          "-o";"StrictHostKeyChecking=no";
+          "-o";"PasswordAuthentication=no";
+          "-c";"arcfour";"-C";
+          "-P";port
+        ]
 
   let sshcmd cmds =
     fun uid keypath client screen -> begin
@@ -114,30 +142,44 @@ struct
   let screencmd opt =
     sshcmd ([OS.screen_path] @ opt)
 
-  let exec cmds =
+  let exec cmds noout =
+    let null_out () =
+      let fd = Unix.openfile "/dev/null" [Unix.O_WRONLY] 0o666 in
+      Unix.dup2 fd Unix.stdout;
+      Unix.dup2 fd Unix.stderr;
+      Unix.close fd
+    in
     let arr = Array.of_list cmds in
+    if noout then null_out () else ();
     Unix.execvp arr.(0) arr
 
-  let fork_and_exec screen uid cmdgen keypath client =
+  let fork_and_exec screen uid cmdgen keypath noout client =
     let pid = Unix.fork () in
     match pid with
       | 0 -> (* child *)
           let cmds = cmdgen uid keypath client screen in
-          exec cmds
+          exec cmds noout
       | -1 -> failwith "failed to fork"
       | _ -> ()
+
+  let execute_return keypath uid cmdgen client =
+    fork_and_exec false uid cmdgen keypath true client;
+    let _pid, status = Unix.wait () in
+    match status with
+      | Unix.WEXITED c when c = 0 -> true
+      | _ -> false
 
   let wait_for_children clients =
     List.iter (fun _ -> ignore( Unix.wait () )) clients
 
   let parallel_exec ?screen:(screen=true) keypath lst uid cmdgen =
-    List.iter (fork_and_exec screen uid cmdgen keypath) lst;
+    List.iter (fork_and_exec screen uid cmdgen keypath false) lst;
     wait_for_children lst
 
   let sequential_exec lst uid cmdgen keypath =
     List.iter (fun ({client_name=name} as cl) ->
       Printf.printf "client: %s\n" name; flush stdout;
-      let () = fork_and_exec false uid cmdgen keypath cl in
+      let () = fork_and_exec false uid cmdgen keypath false cl in
       ignore( Unix.wait () )
     ) lst
 

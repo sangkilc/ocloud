@@ -17,7 +17,6 @@ open Ocamlbuild_pack
 
 (* these functions are not really officially exported *)
 let run_and_read = Ocamlbuild_pack.My_unix.run_and_read
-let blank_sep_strings = Ocamlbuild_pack.Lexers.blank_sep_strings
 
 let split s ch =
   let x = ref [] in
@@ -41,26 +40,11 @@ let before_space s =
 let find_packages () =
   List.map before_space (split_nl & run_and_read "ocamlfind list")
 
-(* this is supposed to list available syntaxes, but I don't know how to do it. *)
-let find_syntaxes () = ["camlp4o"; "camlp4r"]
-
 (* ocamlfind command *)
 let ocamlfind x = S[A"ocamlfind"; x]
 
-(* camlidl command *)
-let camlidl = S([A"camlidl"])
-
-(* ocaml path *)
-let ocamlpath =
-  let ch = Unix.open_process_in "ocamlfind printconf path" in
-  let line = input_line ch in
-  ignore (Unix.close_process_in ch);
-  line
-
 let _ = dispatch begin function
   | Before_options ->
-      (* by using Before_options one let command line options have an higher priority *)
-      (* on the contrary using After_options will guarantee to have the higher priority *)
 
       (* override default commands by ocamlfind ones *)
       Options.ocamlc     := ocamlfind & A"ocamlc";
@@ -77,7 +61,6 @@ let _ = dispatch begin function
 
   | After_rules ->
 
-      (* When one link an OCaml library/binary/package, one should use -linkpkg *)
       flag ["ocaml"; "link"; "program"] & A"-linkpkg";
 
       (* For each ocamlfind package one inject the -package option when
@@ -90,15 +73,6 @@ let _ = dispatch begin function
         flag ["ocaml"; "link";     "pkg_"^pkg] & S[A"-package"; A pkg];
         flag ["ocaml"; "infer_interface"; "pkg_"^pkg] & S[A"-package"; A pkg];
       end (find_packages ());
-
-      (* Like -package but for extensions syntax. Morover -syntax is useless
-       * when linking. *)
-      List.iter begin fun syntax ->
-        flag ["ocaml"; "compile";  "syntax_"^syntax] & S[A"-syntax"; A syntax];
-        flag ["ocaml"; "ocamldep"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
-        flag ["ocaml"; "doc";      "syntax_"^syntax] & S[A"-syntax"; A syntax];
-        flag ["ocaml"; "infer_interface"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
-      end (find_syntaxes ());
 
       (* The default "thread" tag is not compatible with ocamlfind.
          Indeed, the default rules add the "threads.cma" or "threads.cmxa"
@@ -121,20 +95,6 @@ let _ = dispatch begin function
         (S[A"-inline";A"10"]);
       flag ["ocaml"; "link"; "native"]
         (S[A"-inline";A"10"]);
-
-      (* camlidl rules starts here *)
-      rule "camlidl"
-        ~prods:["%.mli"; "%.ml"; "%_stubs.c"]
-        ~deps:["%.idl"]
-        begin fun env _build ->
-          let idl = env "%.idl" in
-          let tags = tags_of_pathname idl ++ "compile" ++ "camlidl" in
-          let cmd = Cmd( S[camlidl; T tags; P idl] ) in
-          Seq [cmd]
-        end;
-
-      flag ["ocamlmklib"; "c"]
-        (S[A"-L."])
 
   | _ -> ()
 end

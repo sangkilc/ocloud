@@ -21,9 +21,12 @@ open Cloudapi
 
 let ocloud_env_user = "OCLOUD_USER"
 
+let current_user_id =
+  let pw = Unix.getpwuid (Unix.geteuid ()) in pw.Unix.pw_name
+
 let user_id =
   try Sys.getenv ocloud_env_user
-  with Not_found -> "user"
+  with Not_found -> current_user_id
 
 let root_id = "root"
 
@@ -63,7 +66,7 @@ struct
     | _ -> failwith "push takes 2 arguments"
 
   let connect keypath uid client =
-    API.exec (API.sshcmd [] uid keypath client false)
+    API.exec (API.sshcmd [] uid keypath client false) false
 
   let rec connect_to keypath uid name = function
     | client::tl ->
@@ -77,12 +80,13 @@ struct
     | name::_ -> connect_to keypath user_id name client_list
     | [] -> failwith "client name is not given"
 
-  let ping keypath client_list = function
-    | _ -> () (* TODO *)
-
-  let list_clients client_list =
-    List.iter (fun {client_name=n;client_addr=a} ->
-      Printf.printf "(%s) : (%s)\n" n a
+  let list_clients keypath client_list =
+    List.iter (fun ({client_name=n; client_addr=a; client_port=p} as c) ->
+      let status = API.execute_return keypath user_id (API.sshcmd ["exit"]) c in
+      let status =
+        if status then "ok" else "\x1b[31mfailed to connect\x1b[0m"
+      in
+      Printf.printf "(%s) : (%s) : (%d) : %s\n" n a p status; flush stdout
     ) client_list
 
   let deploy keypath client_list cmds user_id =
@@ -100,8 +104,7 @@ struct
     | "zippull" -> zippull keypath client_list args
     | "push" -> push keypath client_list args
     | "connect" -> connect keypath client_list args
-    | "ping" -> ping keypath client_list args
-    | "list" | "ls" -> list_clients client_list
+    | "list" | "ls" -> list_clients keypath client_list
     | "deploy" -> deploy keypath client_list args user_id
     | "exec" | "execute" -> exec keypath client_list args user_id
     | "rootexec" -> exec keypath client_list args root_id
@@ -123,7 +126,6 @@ let invalid_arg () =
     "  rootexec <cmd>                       : execute a command as a root\n"^
     "  reboot                               : reboot\n" ^
     "  kill                                 : stop all the user processes\n" ^
-    "  ping                                 : check availability of clients\n" ^
     "  pull <remote> <local>                : pull remote file to local dir\n" ^
     "  push <local> <remote>                : push local file/dir to remote\n" ^
     "  connect <client_name>                : connect to a client\n" ^
