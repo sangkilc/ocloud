@@ -18,7 +18,7 @@ argument and the rest of the arguments specify commands. You can list available
 commands by simply typing:
 ```
 $ ./ocloud.native
-```.
+```
 
 ### Client File
 
